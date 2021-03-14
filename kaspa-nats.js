@@ -247,7 +247,7 @@ class KaspaNATS {
 
                 log.info('network Sync...');
                 await this.networkSync();
-                this.setupLogs(wallet);
+                this.setupLogs(this.wallet);
                 await this.wallet.sync(true);
             });
 
@@ -322,8 +322,22 @@ class KaspaNATS {
         });
 
 
+		const sub_ping = this.nats.subscribe('KASPA.ping');
         (async()=>{
-            const sub_balance = this.nats.subscribe('KASPA.wallet.balance');
+            for await(const msg of sub_ping) {
+                if(msg.reply) {
+					log.info('ping - direct');
+					return msg.respond(jc.encode({ uid }));
+				}
+				else {
+					log.info('ping');
+					this.nats.publish('KASPA.pong', jc.encode({uid}));
+				}
+            }
+        })().then();
+
+		const sub_balance = this.nats.subscribe('KASPA.wallet.balance');
+        (async()=>{
             for await(const msg of sub_balance) {
                 if(!msg.reply)
                     return;
@@ -333,9 +347,8 @@ class KaspaNATS {
         })().then();
 
 
+		const sub_send = this.nats.subscribe('KASPA.wallet.send');
         (async()=>{
-
-            const sub_send = this.nats.subscribe('KASPA.wallet.send');
 
             for await(const msg of sub_send) {
                 if(!msg.reply)
